@@ -228,7 +228,7 @@ func ListBranches(getClient GetClientFn, t translations.TranslationHelperFunc) (
 // CreateOrUpdateFile creates a tool to create or update a file in a GitHub repository.
 func CreateOrUpdateFile(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("create_or_update_file",
-			mcp.WithDescription(t("TOOL_CREATE_OR_UPDATE_FILE_DESCRIPTION", "Create or update a single file in a GitHub repository. If updating, you must provide the SHA of the file you want to update.")),
+			mcp.WithDescription(t("TOOL_CREATE_OR_UPDATE_FILE_DESCRIPTION", "Create or update a single file in a GitHub repository. If updating, you must provide the SHA of the file you want to update. WARNING: For files in active development, strongly prefer local file operations followed by standard git workflow rather than direct API calls.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
 				Title:        t("TOOL_CREATE_OR_UPDATE_FILE_USER_TITLE", "Create or update file"),
 				ReadOnlyHint: toBoolPtr(false),
@@ -411,7 +411,7 @@ func CreateRepository(getClient GetClientFn, t translations.TranslationHelperFun
 // GetFileContents creates a tool to get the contents of a file or directory from a GitHub repository.
 func GetFileContents(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("get_file_contents",
-			mcp.WithDescription(t("TOOL_GET_FILE_CONTENTS_DESCRIPTION", "Get the contents of a file or directory from a GitHub repository")),
+			mcp.WithDescription(t("TOOL_GET_FILE_CONTENTS_DESCRIPTION", "Get the contents of a file or directory from a GitHub repository. Useful for searching across repositories, but for files in active development, prefer local file operations to avoid unnecessary API calls.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
 				Title:        t("TOOL_GET_FILE_CONTENTS_USER_TITLE", "Get file or directory contents"),
 				ReadOnlyHint: toBoolPtr(true),
@@ -719,7 +719,7 @@ func DeleteFile(getClient GetClientFn, t translations.TranslationHelperFunc) (to
 // CreateBranch creates a tool to create a new branch.
 func CreateBranch(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("create_branch",
-			mcp.WithDescription(t("TOOL_CREATE_BRANCH_DESCRIPTION", "Create a new branch in a GitHub repository")),
+			mcp.WithDescription(t("TOOL_CREATE_BRANCH_DESCRIPTION", "Create a new branch in a GitHub repository. WARNING: For active development, strongly prefer local git branch creation (git checkout -b) followed by pushing to remote. This remote operation should only be used when local git operations are not possible.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
 				Title:        t("TOOL_CREATE_BRANCH_USER_TITLE", "Create branch"),
 				ReadOnlyHint: toBoolPtr(false),
@@ -808,7 +808,7 @@ func CreateBranch(getClient GetClientFn, t translations.TranslationHelperFunc) (
 // PushFiles creates a tool to push multiple files in a single commit to a GitHub repository.
 func PushFiles(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("push_files",
-			mcp.WithDescription(t("TOOL_PUSH_FILES_DESCRIPTION", "Push multiple files to a GitHub repository in a single commit")),
+			mcp.WithDescription(t("TOOL_PUSH_FILES_DESCRIPTION", "Push multiple files to a GitHub repository in a single commit. WARNING: This bypasses standard git workflow and should only be used when local git operations (add, commit, push) are not possible. For normal development, prefer local git commands.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
 				Title:        t("TOOL_PUSH_FILES_USER_TITLE", "Push files to repository"),
 				ReadOnlyHint: toBoolPtr(false),
