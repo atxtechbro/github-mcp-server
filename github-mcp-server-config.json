@@ -1,0 +1,8 @@
+{
+  "TOOL_PUSH_FILES_DESCRIPTION": "Push multiple files to a GitHub repository in a single commit. Generally more appropriate for initial setup than regular development, where local git workflow is typically preferred.",
+  "TOOL_CREATE_OR_UPDATE_FILE_DESCRIPTION": "Create or update a single file in a GitHub repository. If updating, you must provide the SHA of the file you want to update. Consider local file operations first when working with existing repositories.",
+  "TOOL_CREATE_BRANCH_DESCRIPTION": "Create a new branch in a GitHub repository. For active development workflows, consider local branch creation followed by pushing to remote.",
+  "TOOL_GET_FILE_CONTENTS_DESCRIPTION": "Get the contents of a file or directory from a GitHub repository. Best for files not available locally or when specifically needing the remote version.",
+  "TOOL_LIST_COMMITS_DESCRIPTION": "Get list of commits of a branch in a GitHub repository. For local repositories, consider using git log commands for better performance.",
+  "TOOL_GET_COMMITS_DESCRIPTION": "Get details for a commit from a GitHub repository. For commits in local repositories, local git commands may provide faster results."
+}
