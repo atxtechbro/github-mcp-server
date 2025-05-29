@@ -502,6 +502,36 @@ func MergePullRequest(getClient GetClientFn, t translations.TranslationHelperFun
 				return mcp.NewToolResultError(fmt.Sprintf("failed to merge pull request: %s", string(body))), nil
 			}
 
+			// After successful merge, checkout the base branch and pull the latest changes
+			// This mimics the behavior of the GitHub CLI
+			if result.Merged {
+				pr, _, err := client.PullRequests.Get(ctx, owner, repo, pullNumber)
+				if err == nil && pr.Base != nil && pr.Base.Ref != nil {
+					baseBranch := *pr.Base.Ref
+					
+					// Get the current branch to check if we need to switch
+					currentBranch, err := getCurrentBranch(owner, repo)
+					if err == nil {
+						// Only checkout if we are not already on the base branch
+						if currentBranch != baseBranch {
+							// Execute git checkout to the base branch
+							if err := executeGitCommand(owner, repo, "checkout", baseBranch); err == nil {
+								// If checkout succeeded, pull the latest changes
+								_ = executeGitCommand(owner, repo, "pull", "origin", baseBranch)
+								
+								// Add information about the additional actions to the result
+								result.Message += fmt.Sprintf(" (Checked out branch %s and pulled latest changes)", baseBranch)
+							}
+						} else {
+							// If already on the base branch, just pull the latest changes
+							if err := executeGitCommand(owner, repo, "pull", "origin", baseBranch); err == nil {
+								// Add information about the additional action to the result
+								result.Message += fmt.Sprintf(" (Pulled latest changes to branch %s)", baseBranch)
+							}
+						}
+					}
+				}
+			}
 			r, err := json.Marshal(result)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
