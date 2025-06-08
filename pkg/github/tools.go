@@ -33,7 +33,6 @@ func InitToolsets(passedToolsets []string, readOnly bool, getClient GetClientFn,
 			toolsets.NewServerTool(GetTag(getClient, t)),
 		).
 		AddWriteTools(
-			toolsets.NewServerTool(CreateOrUpdateFile(getClient, t)),
 			toolsets.NewServerTool(CreateRepository(getClient, t)),
 			toolsets.NewServerTool(ForkRepository(getClient, t)),
 			toolsets.NewServerTool(CreateBranch(getClient, t)),
