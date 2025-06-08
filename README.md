@@ -624,6 +624,12 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `repo`: Repository name (string, required)
   - `job_id`: Job ID (number, required)
 
+- **get_failed_job_logs** - Get logs only for failed jobs in a workflow run (efficient alternative to downloading all logs)
+
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `run_id`: Workflow run ID (number, required)
+
 - **rerun_workflow_run** - Re-run an entire workflow
 
   - `owner`: Repository owner (string, required)

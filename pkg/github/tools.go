@@ -110,6 +110,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(GetWorkflowRunLogs(getClient, t)),
 			toolsets.NewServerTool(ListWorkflowJobs(getClient, t)),
 			toolsets.NewServerTool(GetJobLogs(getClient, t)),
+			toolsets.NewServerTool(GetFailedJobLogs(getClient, t)),
 			toolsets.NewServerTool(ListWorkflowRunArtifacts(getClient, t)),
 			toolsets.NewServerTool(DownloadWorkflowRunArtifact(getClient, t)),
 			toolsets.NewServerTool(GetWorkflowRunUsage(getClient, t)),

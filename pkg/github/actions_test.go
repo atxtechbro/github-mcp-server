@@ -696,3 +696,172 @@ func Test_GetWorkflowRunUsage(t *testing.T) {
 		})
 	}
 }
+func Test_GetFailedJobLogs(t *testing.T) {
+	// Verify tool definition once
+	mockClient := github.NewClient(nil)
+	tool, _ := GetFailedJobLogs(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+
+	assert.Equal(t, "get_failed_job_logs", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.Contains(t, tool.InputSchema.Properties, "run_id")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "run_id"})
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]any
+		expectError    bool
+		expectedErrMsg string
+	}{
+		{
+			name: "successful failed job logs retrieval",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposActionsRunsJobsByOwnerByRepoByRunId,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						jobs := &github.Jobs{
+							TotalCount: github.Int(3),
+							Jobs: []*github.WorkflowJob{
+								{
+									ID:         github.Int64(1),
+									Name:       github.String("test-job"),
+									Status:     github.String("completed"),
+									Conclusion: github.String("success"),
+								},
+								{
+									ID:         github.Int64(2),
+									Name:       github.String("build-job"),
+									Status:     github.String("completed"),
+									Conclusion: github.String("failure"),
+								},
+								{
+									ID:         github.Int64(3),
+									Name:       github.String("deploy-job"),
+									Status:     github.String("completed"),
+									Conclusion: github.String("cancelled"),
+								},
+							},
+						}
+						w.WriteHeader(http.StatusOK)
+						_ = json.NewEncoder(w).Encode(jobs)
+					}),
+				),
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/owner/repo/actions/jobs/2/logs",
+						Method:  "GET",
+					},
+					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						w.Header().Set("Location", "https://api.github.com/repos/owner/repo/actions/jobs/2/download")
+						w.WriteHeader(http.StatusFound)
+					}),
+				),
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/owner/repo/actions/jobs/3/logs",
+						Method:  "GET",
+					},
+					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						w.Header().Set("Location", "https://api.github.com/repos/owner/repo/actions/jobs/3/download")
+						w.WriteHeader(http.StatusFound)
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":  "owner",
+				"repo":   "repo",
+				"run_id": float64(12345),
+			},
+			expectError: false,
+		},
+		{
+			name: "no failed jobs found",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposActionsRunsJobsByOwnerByRepoByRunId,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						jobs := &github.Jobs{
+							TotalCount: github.Int(2),
+							Jobs: []*github.WorkflowJob{
+								{
+									ID:         github.Int64(1),
+									Name:       github.String("test-job"),
+									Status:     github.String("completed"),
+									Conclusion: github.String("success"),
+								},
+								{
+									ID:         github.Int64(2),
+									Name:       github.String("build-job"),
+									Status:     github.String("completed"),
+									Conclusion: github.String("success"),
+								},
+							},
+						}
+						w.WriteHeader(http.StatusOK)
+						_ = json.NewEncoder(w).Encode(jobs)
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":  "owner",
+				"repo":   "repo",
+				"run_id": float64(12345),
+			},
+			expectError: false,
+		},
+		{
+			name:         "missing required parameter run_id",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+			},
+			expectError:    true,
+			expectedErrMsg: "missing required parameter: run_id",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			_, handler := GetFailedJobLogs(stubGetClientFn(client), translations.NullTranslationHelper)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(context.Background(), request)
+
+			require.NoError(t, err)
+			require.Equal(t, tc.expectError, result.IsError)
+
+			// Parse the result and get the text content if no error
+			textContent := getTextResult(t, result)
+
+			if tc.expectedErrMsg != "" {
+				assert.Equal(t, tc.expectedErrMsg, textContent.Text)
+				return
+			}
+
+			// Unmarshal and verify the result
+			var response map[string]any
+			err = json.Unmarshal([]byte(textContent.Text), &response)
+			require.NoError(t, err)
+			assert.Contains(t, response, "message")
+			assert.Contains(t, response, "run_id")
+			assert.Equal(t, float64(12345), response["run_id"])
+
+			if tc.name == "no failed jobs found" {
+				assert.Contains(t, response["message"], "No failed jobs found")
+				assert.Equal(t, float64(0), response["failed_jobs"])
+			} else if tc.name == "successful failed job logs retrieval" {
+				assert.Contains(t, response["message"], "Found 2 failed jobs")
+				assert.Equal(t, float64(2), response["failed_jobs"])
+				assert.Equal(t, float64(3), response["total_jobs"])
+			}
+		})
+	}
+}

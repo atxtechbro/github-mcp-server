@@ -992,3 +992,123 @@ func GetWorkflowRunUsage(getClient GetClientFn, t translations.TranslationHelper
 			return mcp.NewToolResultText(string(r)), nil
 		}
 }
+
+// GetFailedJobLogs creates a tool to get logs only for failed jobs in a workflow run
+func GetFailedJobLogs(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("get_failed_job_logs",
+		mcp.WithDescription(t("TOOL_GET_FAILED_JOB_LOGS_DESCRIPTION", "Get logs only for failed jobs in a workflow run")),
+		mcp.WithToolAnnotation(mcp.ToolAnnotation{
+			ReadOnlyHint: toBoolPtr(true),
+		}),
+		mcp.WithString("owner",
+			mcp.Required(),
+			mcp.Description("The account owner of the repository. The name is not case sensitive."),
+		),
+		mcp.WithString("repo",
+			mcp.Required(),
+			mcp.Description("Repository name"),
+		),
+		mcp.WithNumber("run_id",
+			mcp.Required(),
+			mcp.Description("The unique identifier of the workflow run"),
+		),
+	),
+	func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		owner, err := requiredParam[string](request, "owner")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		repo, err := requiredParam[string](request, "repo")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		runIDInt, err := RequiredInt(request, "run_id")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		runID := int64(runIDInt)
+
+		client, err := getClient(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+		}
+
+		// Step 1: List all jobs for the workflow run
+		jobs, resp, err := client.Actions.ListWorkflowJobs(ctx, owner, repo, runID, &github.ListWorkflowJobsOptions{
+			Filter: "all", // Get all jobs to filter locally
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to list workflow jobs: %w", err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		// Step 2: Filter for failed/cancelled jobs
+		var failedJobs []*github.WorkflowJob
+		for _, job := range jobs.Jobs {
+			if job.Conclusion != nil && (*job.Conclusion == "failure" || *job.Conclusion == "cancelled") {
+				failedJobs = append(failedJobs, job)
+			}
+		}
+
+		// If no failed jobs, return early
+		if len(failedJobs) == 0 {
+			result := map[string]any{
+				"message":     "No failed jobs found in this workflow run",
+				"run_id":      runID,
+				"failed_jobs": []any{},
+				"logs":        "",
+			}
+			r, err := json.Marshal(result)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+			return mcp.NewToolResultText(string(r)), nil
+		}
+
+		// Step 3: Collect logs for failed jobs
+		var combinedLogs []map[string]any
+		for _, job := range failedJobs {
+			// Get logs for this specific job
+			url, logResp, err := client.Actions.GetWorkflowJobLogs(ctx, owner, repo, job.GetID(), 1)
+			if err != nil {
+				// If we can't get logs for a job, note it but continue with others
+				combinedLogs = append(combinedLogs, map[string]any{
+					"job_id":   job.GetID(),
+					"job_name": job.GetName(),
+					"status":   job.GetConclusion(),
+					"error":    fmt.Sprintf("Failed to get logs: %v", err),
+					"logs_url": nil,
+				})
+				continue
+			}
+			defer func() { _ = logResp.Body.Close() }()
+
+			combinedLogs = append(combinedLogs, map[string]any{
+				"job_id":     job.GetID(),
+				"job_name":   job.GetName(),
+				"status":     job.GetConclusion(),
+				"started_at": job.GetStartedAt(),
+				"completed_at": job.GetCompletedAt(),
+				"logs_url":   url.String(),
+				"note":       "Download URL for individual job logs in plain text format",
+			})
+		}
+
+		// Step 4: Create comprehensive response
+		result := map[string]any{
+			"message":        fmt.Sprintf("Found %d failed jobs in workflow run %d", len(failedJobs), runID),
+			"run_id":         runID,
+			"total_jobs":     len(jobs.Jobs),
+			"failed_jobs":    len(failedJobs),
+			"failed_job_logs": combinedLogs,
+			"note":           "This tool efficiently retrieves logs only for failed/cancelled jobs, saving API calls and reducing token usage compared to downloading all workflow logs.",
+		}
+
+		r, err := json.Marshal(result)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal response: %w", err)
+		}
+
+		return mcp.NewToolResultText(string(r)), nil
+	}
+}
